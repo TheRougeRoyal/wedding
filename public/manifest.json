@@ -1,0 +1,17 @@
+{
+  "name": "Shaadi Guest Tracker",
+  "short_name": "GuestTracker",
+  "description": "Track wedding guests, their train PNRs, live status, and arrival times",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#f43f5e",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}
