@@ -1,100 +1,117 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import Dashboard from '@/components/Dashboard';
+import { Logo } from '@/components/Logo';
+import { Button } from '@/components/ui/button';
+import { subscribeToGuests, deleteGuest, updateGuest } from '@/lib/firestore-storage';
+import { assignRoomToGuest } from '@/lib/rooms';
+import { Plus } from 'lucide-react';
 
 export default function Home() {
   const [guests, setGuests] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  // Load guests from localStorage on initial load
   useEffect(() => {
-    const loadGuests = () => {
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('weddingGuests');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            setGuests(parsed);
-          } catch (err) {
-            console.error('Failed to parse guests from localStorage:', err);
-            setGuests([]);
-          }
-        }
-      }
-    };
-
-    loadGuests();
+    const unsub = subscribeToGuests((g) => {
+      setGuests(g);
+      setLoading(false);
+    });
+    return unsub;
   }, []);
 
-  // Save guests to localStorage whenever they change
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('weddingGuests', JSON.stringify(guests));
+  const handleDeleteGuest = async (id) => {
+    try {
+      await deleteGuest(id);
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
+  };
+
+  const handleRefreshGuest = useCallback(async (id) => {
+    const guest = guests.find((g) => g.id === id);
+    if (!guest) return;
+
+    const isFlight = guest.travelMode === 'flight';
+    const endpoint = isFlight ? '/api/flight/status' : '/api/train/status';
+    const body = isFlight
+      ? { flightNumber: guest.flightNumber }
+      : { trainNumber: guest.trainNumber };
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        const updates = isFlight
+          ? {
+              airline: data.data.airline,
+              status: data.data.status,
+              delayMinutes: data.data.delayMinutes,
+              departureTime: data.data.departureTime,
+              arrivalTime: data.data.arrivalTime,
+              departureTerminal: data.data.departureTerminal,
+              departureGate: data.data.departureGate,
+              arrivalTerminal: data.data.arrivalTerminal,
+              arrivalGate: data.data.arrivalGate,
+              lastUpdated: data.data.lastUpdated,
+            }
+          : {
+              currentStation: data.data.currentStation,
+              nextStop: data.data.nextStop,
+              nextStopTime: data.data.nextStopTime,
+              status: data.data.status,
+              delayMinutes: data.data.delayMinutes,
+              lastUpdated: data.data.lastUpdated,
+            };
+        await updateGuest(id, updates);
+      }
+    } catch (err) {
+      console.error('Refresh failed:', err);
     }
   }, [guests]);
 
-  // Handle adding a new guest
-  const handleAddGuest = (newGuest) => {
-    setGuests((prev) => [...prev, newGuest]);
-  };
-
-  // Handle deleting a guest
-  const handleDeleteGuest = (id) => {
-    setGuests((prev) => prev.filter((guest) => guest.id !== id));
-  };
-
-  // Handle toggling reminder
-  const handleToggleReminder = (id) => {
-    setGuests((prev) =>
-      prev.map((guest) =>
-        guest.id === id
-          ? {
-              ...guest,
-              reminderSet: !guest.reminderSet,
-              reminderSent: false, // Reset sent status when toggling
-            }
-          : guest
-      )
-    );
-  };
-
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] text-white">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-rose-400 to-pink-500 bg-clip-text text-transparent">
-            Wedding Guest Tracker
-          </h1>
-          <p className="text-lg text-gray-300 max-w-xl mx-auto">
-            Track your wedding guests' travel details, PNR status, and set arrival reminders
-          </p>
-          <div className="mt-6">
-            <a
-              href="/add"
-              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-400 hover:to-pink-400 text-lg font-semibold rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-            >
-              <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Add Guest
-            </a>
+  if (loading) {
+    return (
+      <main className="min-h-screen">
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-sm text-muted-foreground">Loading guests...</p>
           </div>
         </div>
+      </main>
+    );
+  }
 
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="flex items-center justify-center mb-4">
-              <div className="h-8 w-8 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
+  return (
+    <main className="min-h-screen">
+      <div className="container mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-12">
+        {/* Header */}
+        <div className="mb-6 flex items-center justify-between sm:mb-10">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Logo className="h-7 w-7 sm:h-8 sm:w-8" />
+            <div>
+              <h1 className="text-lg font-bold tracking-tight sm:text-2xl">Wedding Guest Tracker</h1>
+              <p className="text-xs text-muted-foreground sm:text-sm">Track train & flight arrivals</p>
             </div>
-            <p className="text-gray-400">Loading guests...</p>
           </div>
-        ) : (
-          <Dashboard
-            guests={guests}
-            onDelete={handleDeleteGuest}
-            onToggleReminder={handleToggleReminder}
-          />
-        )}
+          <Link href="/add">
+            <Button size="sm" className="sm:h-9 sm:px-4">
+              <Plus className="mr-1 h-4 w-4" />
+              <span className="hidden sm:inline">Add Guest</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+          </Link>
+        </div>
+
+        <Dashboard
+          guests={guests}
+          onDelete={handleDeleteGuest}
+          onRefreshGuest={handleRefreshGuest}
+        />
       </div>
     </main>
   );

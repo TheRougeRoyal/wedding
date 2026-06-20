@@ -1,148 +1,196 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { formatTimeUntil } from '@/lib/reminders';
+import { useState } from 'react';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import Dialog from '@/components/Dialog';
+import { useToast } from '@/components/Toast';
+import { RefreshCw, Trash2, Plane, TrainFront, Clock, MapPin, BedDouble } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-export default function GuestCard({ guest, onDelete, onToggleReminder }) {
-  const [timeUntil, setTimeUntil] = useState('');
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+const statusConfig = {
+  active: { label: 'En Route', variant: 'default' },
+  'IN_TRANSIT': { label: 'In Transit', variant: 'default' },
+  'en-route': { label: 'En Route', variant: 'default' },
+  landed: { label: 'Arrived', variant: 'secondary' },
+  'ARRIVED': { label: 'Arrived', variant: 'secondary' },
+  scheduled: { label: 'Scheduled', variant: 'outline' },
+  cancelled: { label: 'Cancelled', variant: 'destructive' },
+  delayed: { label: 'Delayed', variant: 'destructive' },
+  'NOT_STARTED': { label: 'Not Started', variant: 'outline' },
+};
 
-  useEffect(() => {
-    setTimeUntil(formatTimeUntil(guest.arrival));
-    const interval = setInterval(() => {
-      setTimeUntil(formatTimeUntil(guest.arrival));
-    }, 60000);
-    return () => clearInterval(interval);
-  }, [guest.arrival]);
+export default function GuestCard({ guest, onDelete, onRefresh }) {
+  const [showDelete, setShowDelete] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const toast = useToast();
 
-  const isArrived = new Date(guest.arrival) <= new Date();
-  const isTrain = guest.type === 'train';
+  const isFlight = guest.travelMode === 'flight';
+  const status = statusConfig[guest.status] || { label: guest.status || 'Unknown', variant: 'outline' };
 
-  const formatDateTime = (iso) => {
-    return new Date(iso).toLocaleString('en-IN', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await onRefresh(guest.id);
+      toast('Status refreshed', 'success');
+    } catch {
+      toast('Refresh failed', 'error');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  return (
-    <div
-      className={`group relative overflow-hidden rounded-2xl border transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl ${
-        isTrain
-          ? 'border-amber-500/20 bg-gradient-to-br from-amber-950/40 via-stone-900/60 to-stone-950/80 hover:border-amber-400/40 hover:shadow-amber-500/10'
-          : 'border-sky-500/20 bg-gradient-to-br from-sky-950/40 via-slate-900/60 to-slate-950/80 hover:border-sky-400/40 hover:shadow-sky-500/10'
-      } backdrop-blur-xl`}
-    >
-      {/* Decorative gradient orb */}
-      <div
-        className={`absolute -right-8 -top-8 h-24 w-24 rounded-full blur-3xl transition-opacity duration-500 group-hover:opacity-60 ${
-          isTrain ? 'bg-amber-500/20 opacity-30' : 'bg-sky-500/20 opacity-30'
-        }`}
-      />
+  const handleDelete = async () => {
+    try {
+      await onDelete(guest.id);
+      toast(`${guest.name} removed`, 'success');
+    } catch {
+      toast('Delete failed', 'error');
+    }
+    setShowDelete(false);
+  };
 
-      <div className="relative p-5">
-        {/* Header */}
-        <div className="mb-4 flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex h-11 w-11 items-center justify-center rounded-xl text-xl ${
-                isTrain
-                  ? 'bg-amber-500/15 text-amber-400'
-                  : 'bg-sky-500/15 text-sky-400'
-              }`}
-            >
-              {isTrain ? '🚂' : '✈️'}
+  const statusVariant = guest.delayMinutes > 0 ? 'destructive' : status.variant;
+
+  return (
+    <>
+      <Card className="group relative overflow-hidden transition-all hover:shadow-md">
+        <CardHeader className="p-4 pb-2 sm:p-5 sm:pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2.5 sm:gap-3">
+              <div className={cn(
+                'flex h-9 w-9 items-center justify-center rounded-lg sm:h-10 sm:w-10',
+                isFlight ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'
+              )}>
+                {isFlight ? <Plane className="h-4 w-4 sm:h-5 sm:w-5" /> : <TrainFront className="h-4 w-4 sm:h-5 sm:w-5" />}
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold leading-none truncate">{guest.name}</h3>
+                <p className="mt-1 truncate text-xs text-muted-foreground sm:text-sm">
+                  {isFlight
+                    ? `${guest.airline || 'Airline'} · ${guest.flightNumber}`
+                    : `${guest.trainName || 'Train'} · ${guest.trainNumber}`
+                  }
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-white">{guest.name}</h3>
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  isTrain
-                    ? 'bg-amber-500/15 text-amber-300'
-                    : 'bg-sky-500/15 text-sky-300'
-                }`}
-              >
-                {isTrain ? 'Train' : 'Flight'} • {guest.pnr}
+            <Badge variant={statusVariant} className="shrink-0 text-[10px] sm:text-xs">
+              {guest.delayMinutes > 0 && <Clock className="mr-1 h-3 w-3" />}
+              {guest.delayMinutes > 0 ? `${guest.delayMinutes}m late` : status.label}
+            </Badge>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-4 pt-0 sm:p-5 sm:pt-0">
+          <div className="space-y-1.5 text-xs sm:text-sm">
+            <div className="flex items-center text-muted-foreground">
+              <MapPin className="mr-2 h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" />
+              <span className="truncate">
+                {isFlight
+                  ? `${guest.originName || guest.origin} → ${guest.destinationName || guest.destination}`
+                  : `${guest.origin} → ${guest.destination}`
+                }
               </span>
             </div>
+
+            {isFlight ? (
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-muted-foreground sm:text-xs">
+                {guest.departureTime && (
+                  <div>
+                    <span className="text-foreground font-medium">Departs</span>
+                    <br />
+                    {new Date(guest.departureTime).toLocaleString('en-IN', {
+                      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}
+                    {guest.departureTerminal && ` · T${guest.departureTerminal}`}
+                  </div>
+                )}
+                {guest.arrivalTime && (
+                  <div>
+                    <span className="text-foreground font-medium">Arrives</span>
+                    <br />
+                    {new Date(guest.arrivalTime).toLocaleString('en-IN', {
+                      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}
+                    {guest.arrivalTerminal && ` · T${guest.arrivalTerminal}`}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-0.5 text-[11px] text-muted-foreground sm:space-y-1 sm:text-xs">
+                {guest.currentStation && (
+                  <p>Current: <span className="text-foreground">{guest.currentStation}</span></p>
+                )}
+                {guest.nextStop && (
+                  <p>Next: <span className="text-foreground">{guest.nextStop}</span> {guest.nextStopTime}</p>
+                )}
+              </div>
+            )}
+
+            {guest.journeyDate && (
+              <p className="text-xs text-muted-foreground">
+                {new Date(guest.journeyDate).toLocaleDateString('en-IN', { dateStyle: 'medium' })}
+              </p>
+            )}
+
+            {guest.rooms && guest.rooms.length > 0 && (
+              <div className="flex items-center gap-2 pt-1">
+                <BedDouble className="h-3 w-3 shrink-0 text-primary sm:h-3.5 sm:w-3.5" />
+                <span className="text-[11px] font-medium text-primary sm:text-xs">
+                  Room {guest.rooms.length === 1
+                    ? guest.rooms[0]
+                    : `${guest.rooms[0]}–${guest.rooms[guest.rooms.length - 1]}`
+                  }
+                </span>
+                <span className="text-[9px] text-muted-foreground sm:text-[10px]">
+                  ({guest.peopleCount || 1} {guest.peopleCount === 1 ? 'person' : 'people'})
+                </span>
+              </div>
+            )}
+            {guest.roomError && (
+              <p className="text-[10px] text-destructive">No rooms available</p>
+            )}
           </div>
 
-          {/* Status badge */}
-          <div
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              isArrived
-                ? 'bg-emerald-500/15 text-emerald-400'
-                : 'bg-rose-500/15 text-rose-300'
-            }`}
-          >
-            {isArrived ? '✓ Arrived' : timeUntil}
-          </div>
-        </div>
-
-        {/* Schedule Info */}
-        <div className="mb-4 space-y-2 rounded-xl bg-white/[0.03] p-3">
-          <div className="flex items-center gap-2 text-sm">
-            <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-gray-400">Arrives:</span>
-            <span className="text-gray-200">{formatDateTime(guest.arrival)}</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <svg className="h-4 w-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-gray-400">Departs:</span>
-            <span className="text-gray-200">{formatDateTime(guest.departure)}</span>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onToggleReminder(guest.id)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-300 ${
-              guest.reminderSet
-                ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <svg className="h-4 w-4" fill={guest.reminderSet ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-            </svg>
-            {guest.reminderSet ? 'Reminder On' : 'Set Reminder'}
-          </button>
-
-          {showConfirmDelete ? (
-            <div className="flex gap-1">
-              <button
-                onClick={() => {
-                  onDelete(guest.id);
-                  setShowConfirmDelete(false);
-                }}
-                className="rounded-xl bg-red-500/20 px-3 py-2.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/30"
-              >
-                Confirm
-              </button>
-              <button
-                onClick={() => setShowConfirmDelete(false)}
-                className="rounded-xl bg-white/5 px-3 py-2.5 text-sm font-medium text-gray-400 transition-colors hover:bg-white/10"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowConfirmDelete(true)}
-              className="rounded-xl bg-white/5 p-2.5 text-gray-500 transition-all hover:bg-red-500/10 hover:text-red-400"
+          <div className="mt-3 flex items-center gap-1.5 border-t pt-2.5 sm:mt-4 sm:gap-2 sm:pt-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="h-7 px-2 sm:h-8"
             >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-          )}
+              <RefreshCw className={cn('h-3 w-3 sm:h-3.5 sm:w-3.5', isRefreshing && 'animate-spin')} />
+              <span className="ml-1 text-[10px] sm:text-xs">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-7 w-7 text-muted-foreground hover:text-destructive sm:h-8 sm:w-8"
+              onClick={() => setShowDelete(true)}
+            >
+              <Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Delete Dialog */}
+      <Dialog open={showDelete} onClose={() => setShowDelete(false)} title="Delete Guest">
+        <p className="text-sm text-muted-foreground mb-4">
+          Remove <span className="font-medium text-foreground">{guest.name}</span> from the guest list?
+        </p>
+        <div className="flex gap-2 justify-end">
+          <Button variant="outline" size="sm" onClick={() => setShowDelete(false)}>
+            Cancel
+          </Button>
+          <Button variant="destructive" size="sm" onClick={handleDelete}>
+            Delete
+          </Button>
         </div>
-      </div>
-    </div>
+      </Dialog>
+    </>
   );
 }

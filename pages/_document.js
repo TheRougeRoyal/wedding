@@ -5,6 +5,7 @@ export default function Document() {
     <Html lang="en" className="dark">
       <Head>
         <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <meta name="description" content="Track your wedding guests, their travel details, PNR status, and set arrival reminders. A beautiful dashboard to manage your big day." />
         <meta name="keywords" content="wedding, guest tracker, PNR, train tracking, travel, reminders, shaadi" />
         <meta name="theme-color" content="#0a0a0f" />
@@ -14,7 +15,8 @@ export default function Document() {
         <meta name="twitter:card" content="summary" />
         <meta name="twitter:title" content="Shaadi Guest Tracker" />
         <meta name="twitter:description" content="Track wedding guests, travel PNRs, and arrival reminders" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
       </Head>
       <body className="antialiased">
         <Main />

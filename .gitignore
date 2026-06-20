@@ -26,3 +26,8 @@ yarn-error.log*
 .DS_Store
 *.pem
 .vercel
+
+# IDE
+.claude/
+.vscode/
+.idea/

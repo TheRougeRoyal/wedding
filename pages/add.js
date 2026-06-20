@@ -1,81 +1,69 @@
 import { useState } from 'react';
-import GuestForm from '@/components/GuestForm';
+import Link from 'next/link';
 import { useRouter } from 'next/router';
+import GuestForm from '@/components/GuestForm';
+import { Logo } from '@/components/Logo';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { addGuest as addGuestToFirestore, getAllGuests } from '@/lib/firestore-storage';
+import { assignRoomToGuest } from '@/lib/rooms';
+import { ArrowLeft } from 'lucide-react';
 
 export default function AddGuest() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleAddGuest = (guestData) => {
-    setLoading(true);
+  const handleAddGuest = async (guestData) => {
     setError('');
+    setIsSubmitting(true);
 
-    // Send guest data to API for validation and ID generation
-    fetch('/api/guests', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(guestData),
-    })
-      .then((res) => {
-        if (!res.ok) {
-          return res.json().then((err) => Promise.reject(err));
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data.success && data.guest) {
-          // Add guest to localStorage
-          const existingGuests = JSON.parse(localStorage.getItem('weddingGuests') || '[]');
-          const updatedGuests = [...existingGuests, data.guest];
-          localStorage.setItem('weddingGuests', JSON.stringify(updatedGuests));
-
-          // Redirect to dashboard
-          router.push('/');
-        } else {
-          throw new Error(data.error || 'Failed to add guest');
-        }
-      })
-      .catch((err) => {
-        setError(err.message || 'An error occurred while adding the guest');
-        setLoading(false);
-      });
-  };
-
-  const handleCancel = () => {
-    router.push('/');
+    try {
+      const existing = await getAllGuests();
+      const withRoom = assignRoomToGuest(guestData, existing);
+      await addGuestToFirestore(withRoom);
+      router.push('/');
+    } catch (err) {
+      setError(err.message || 'Failed to add guest');
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#0a0a0f] to-[#1a1a2e] text-white">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-rose-400 to-pink-500 bg-clip-text text-transparent">
-              Add Wedding Guest
-            </h1>
-            <a
-              href="/"
-              className="text-sm text-gray-400 hover:text-white"
-            >
-              ← Back to Dashboard
-            </a>
+    <main className="min-h-screen">
+      <div className="container mx-auto max-w-lg px-4 py-6 sm:px-4 sm:py-12">
+        {/* Header */}
+        <div className="mb-6 flex items-center justify-between sm:mb-8">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Logo className="h-5 w-5 sm:h-6 sm:w-6" />
+            <h1 className="text-base font-bold tracking-tight sm:text-xl">Add Guest</h1>
           </div>
-
-          {error && (
-            <div className="mb-6 p-4 rounded-xl border border-red-500/20 bg-red-500/10">
-              ⚠️ {error}
-            </div>
-          )}
-
-          <GuestForm
-            onAddGuest={handleAddGuest}
-            onCancel={handleCancel}
-            className={`${loading ? 'opacity-80' : ''}`}
-          />
+          <Link href="/">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="mr-1 h-4 w-4" />
+              <span className="hidden sm:inline">Back</span>
+              <span className="sm:hidden">←</span>
+            </Button>
+          </Link>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>New Guest</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+            <GuestForm
+              onAddGuest={handleAddGuest}
+              onCancel={() => router.push('/')}
+              isSubmitting={isSubmitting}
+            />
+          </CardContent>
+        </Card>
       </div>
     </main>
   );
