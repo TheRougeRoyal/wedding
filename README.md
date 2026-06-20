@@ -5,7 +5,7 @@ Track your wedding guests' train and flight journeys in real-time.
 ## Features
 
 - **Train Tracking** — Live Indian Railways status via IRCTC API
-- **Flight Tracking** — Real-time flight status via Aviationstack API
+- **Flight Tracking** — Real-time flight status via OpenSky Network API
 - **Guest Dashboard** — Search, filter, and sort guests
 - **Reminders** — Set arrival reminders for each guest
 - **Mobile-First** — Responsive design for phones and tablets
@@ -33,7 +33,8 @@ Create `.env.local`:
 ```env
 RAPIDAPI_KEY=your_rapidapi_key
 RAPIDAPI_HOST=irctc1.p.rapidapi.com
-AVIATIONSTACK_KEY=your_aviationstack_key
+OPENSKY_CLIENT_ID=your_opensky_client_id
+OPENSKY_CLIENT_SECRET=your_opensky_client_secret
 ```
 
 ## Deploy on Vercel
