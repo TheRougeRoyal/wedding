@@ -73,6 +73,11 @@ export default function Timeline({ guests }) {
                     })}
                     {isDelayed && ` · ${g.delayMinutes}m late`}
                   </p>
+                  {(g.origin || g.destination) && (
+                    <p className="text-[10px] text-muted-foreground sm:text-xs">
+                      {g.origin || '?'} → {g.destination || '?'}
+                    </p>
+                  )}
                 </div>
               </div>
             );
